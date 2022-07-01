@@ -1,10 +1,18 @@
 const express = require('express')
-const app = express()
-const { Pool } = require('pg')
 const cors = require("cors")
+const session = require('express-session') //auth
+const passport = require('passport') //auth
+const { Pool } = require('pg')
+require('./auth') //auth
+
+const app = express()
 
 app.use(express.json())
 app.use(cors())
+app.use(session({ secret: 'cats' })) //auth
+app.use(passport.initialize()) //auth
+app.use(passport.session()) //auth
+
 
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
@@ -204,3 +212,62 @@ app.put('/customers/:customerId', (req, res) => {
       res.status(500).json(error)
     })
 })
+
+
+//----- Google Authentication -------//
+
+function isLoggedIn(req, res, next) {
+  req.user ? next() : res.sendStatus(401)
+}
+
+app.get(
+  '/auth/google',
+  passport.authenticate('google', { scope: ['email', 'profile'] }),
+)
+
+app.get(
+  '/google/callback',
+  passport.authenticate('google', {
+    successRedirect: '/protected',
+    failureRedirect: '/auth/failure',
+  }),
+)
+
+app.get('/auth/failure', (req, res) => {
+  res.send('something went wrong...')
+})
+
+app.get('/protected', isLoggedIn, (req, res) => {
+  const { name, email, picture } = req.user;
+  pool.query(`select * from users where email = $1`, [email])
+  .then(result => {
+    if(result.rows.length==0)
+        pool.query(`Insert into users (firstname, surname, email, picture ) 
+                    values ($1, $2, $3, $4)`, [name.givenName, name.familyName, email, picture])
+        .then(()=> res.sendStatus(201))
+        .catch(error => res.json(error))
+  }).catch(error => res.json(error))
+
+  res.send(`
+    Display name: ${req.user.displayName} </br>
+    First name: ${req.user.name.givenName}</br>
+    Surname: ${req.user.name.familyName}</br>
+    Email: ${req.user.email}</br>
+    Picture: ${req.user.picture}</br>
+    `)
+})
+
+app.get('/logout', (req, res) => {
+  req.logout(function (err) {
+    if (err) {
+      return next(err)
+    }
+    res.redirect('/')
+  })
+})
+
+app.get('/currentUser', (req, res) => {
+    res.json(req.user);
+})
+
+//-----------------------------------//
