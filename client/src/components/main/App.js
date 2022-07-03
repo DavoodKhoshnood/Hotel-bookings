@@ -18,9 +18,6 @@ function App() {
           <li onClick={() => setDetail(<Customers />)}>Customers</li>
           <li onClick={() => setDetail(<Bookings />)}>Bookings</li>
         </ul>
-      <div className='user'>
-        <img src="./assets/images/user.png" alt="user"/>
-      </div>
       </nav>
       <main>{detail}</main>
       <footer>
